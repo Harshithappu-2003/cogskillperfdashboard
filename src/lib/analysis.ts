@@ -59,15 +59,22 @@ export function trainRegression(data: Student[], featureKeys: (keyof Student)[],
 
 export function clusterStudents(data: Student[], featureKeys: (keyof Student)[], k = 3): ClusteringResult {
   const X = toFeatureMatrix(data, featureKeys);
-  const { clusters, centroids } = kmeans(X, k, { initialization: "kmeans++" });
-  const centers = centroids.map((c) => c.centroid as number[]);
+  const result = kmeans(X, k, { initialization: "kmeans++" });
+  const { clusters } = result;
+  // Normalize centroids shape across ml-kmeans versions
+  const rawCentroids: any[] = (result as any).centroids ?? [];
+  const centers: number[][] = rawCentroids.map((c: any) => (Array.isArray(c) ? (c as number[]) : (c?.centroid as number[]))).filter(Array.isArray);
   return { k, centroids: centers, clusters, features: featureKeys };
 }
 
 export function summarizeClusters(result: ClusteringResult, featureKeys = result.features) {
-  return result.centroids.map((center, idx) => {
+  const centers = Array.isArray(result?.centroids) ? result.centroids : [];
+  if (centers.length === 0) return [] as string[];
+  return centers.map((center, idx) => {
+    if (!Array.isArray(center)) return `Persona ${idx + 1}`;
     const top = center
       .map((v, i) => ({ key: featureKeys[i], v }))
+      .filter((x) => typeof x.v === "number" && !Number.isNaN(x.v))
       .sort((a, b) => b.v - a.v)
       .slice(0, 2)
       .map((x) => x.key)
